@@ -4,8 +4,14 @@
   "private": true,
   "packageManager": "pnpm@12.3.4",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "preinstall": "node scripts/require-pnpm.cjs",
+    "predev": "node scripts/require-pnpm.cjs",
+    "dev": "next dev --webpack",
+    "prebuild": "node scripts/require-pnpm.cjs",
+    "build": "next build --webpack",
+    "pretypecheck": "node scripts/require-pnpm.cjs",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
+    "prestart": "node scripts/require-pnpm.cjs",
     "start": "next start"
   },
   "dependencies": {

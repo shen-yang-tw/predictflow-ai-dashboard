@@ -7,6 +7,10 @@ export const CustomerChurnSchema = z.object({
   monthly_charges: z.number().positive(),
   total_charges: z.number().nonnegative(),
   contract: z.enum(['Month-to-month', 'One year', 'Two year']),
+  internet_service: z.string().nullable().optional(),
+  payment_method: z.string().nullable().optional(),
+  paperless_billing: z.string().nullable().optional(),
+  senior_citizen: z.string().nullable().optional(),
   actual_churn: z.boolean(),
   churn_probability: z.number().min(0).max(1),
   risk_level: z.enum(['High', 'Medium', 'Low']),
@@ -15,12 +19,144 @@ export const CustomerChurnSchema = z.object({
 
 export type CustomerChurnRecord = z.infer<typeof CustomerChurnSchema>
 
+export const AIPredictionSchema = z.object({
+  active_model: z.string(),
+  churn_analyzed: z.number().int().nonnegative(),
+  churn_method: z.enum(['logistic_regression', 'heuristic_not_calibrated']),
+  churn_predictions: z.array(
+    z.object({
+      customer_id: z.string(),
+      churn_probability: z.number().min(0).max(1),
+      risk_level: z.enum(['High', 'Medium', 'Low']),
+    })
+  ),
+  high_risk_customers: z.array(
+    z.object({
+      customer_id: z.string(),
+      churn_probability: z.number().min(0).max(1),
+      risk_level: z.literal('High'),
+    })
+  ),
+  mrr: z.object({
+    source: z.enum(['history', 'current_customer_baseline', 'snapshot_scenario']),
+    forecast: z.array(
+      z.object({
+        month: z.string(),
+        mrr: z.number().nonnegative(),
+      })
+    ).length(6),
+    current_month: z.string().nullable().optional(),
+    current_mrr: z.number().nonnegative().nullable().optional(),
+    monthly_churn_rate: z.number().nonnegative().nullable().optional(),
+    at_risk_mrr: z.number().nonnegative().nullable().optional(),
+  }),
+  modelops: z.object({
+    model: z.string(),
+    request_count: z.number().int().nonnegative(),
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+    input_cost_usd: z.number().nonnegative(),
+    output_cost_usd: z.number().nonnegative(),
+    total_cost_usd: z.number().nonnegative(),
+    average_latency_ms: z.number().nonnegative().nullable(),
+    p95_latency_ms: z.number().nonnegative().nullable(),
+    failure_rate: z.number().min(0).max(1).nullable(),
+  }),
+  ai_status: z.enum(['generated', 'not_configured', 'provider_error']),
+  ai_error: z.string().nullable(),
+  ai_summary: z
+    .object({
+      summary_en: z.string().min(1).max(1000),
+      summary_zh: z.string().min(1).max(1000),
+    })
+    .nullable(),
+})
+
+export type AIPrediction = z.infer<typeof AIPredictionSchema>
+
+export const TelemetrySchema = z.object({
+  mrr_source: z.enum(['billing_csv', 'none']),
+  mrr_history: z.array(z.object({ month: z.string(), mrr: z.number().nonnegative() })),
+  modelops_source: z.literal('request_log'),
+  modelops_daily: z.array(
+    z.object({
+      date: z.string(),
+      requests: z.number().int().nonnegative(),
+      input_tokens: z.number().int().nonnegative(),
+      output_tokens: z.number().int().nonnegative(),
+      cost_usd: z.number().nonnegative(),
+      average_latency_ms: z.number().nonnegative(),
+      p95_latency_ms: z.number().nonnegative(),
+      failure_rate: z.number().min(0).max(1),
+    })
+  ),
+  modelops_summary: z.object({
+    model: z.string(),
+    period_days: z.number().int().positive(),
+    total_requests: z.number().int().nonnegative(),
+    total_input_tokens: z.number().int().nonnegative(),
+    total_output_tokens: z.number().int().nonnegative(),
+    total_cost_usd: z.number().nonnegative(),
+    budget_usd: z.number().positive(),
+    budget_used_ratio: z.number().nonnegative(),
+    average_latency_ms: z.number().nonnegative(),
+    p95_latency_ms: z.number().nonnegative(),
+    failure_rate: z.number().min(0).max(1),
+  }),
+  anomalies: z.array(
+    z.object({
+      metric: z.enum(['latency', 'failure_rate', 'cost', 'mrr']),
+      period: z.string(),
+      value: z.number(),
+      baseline: z.number(),
+      direction: z.enum(['high', 'low']),
+    })
+  ),
+})
+
+export type Telemetry = z.infer<typeof TelemetrySchema>
+
+export const RetentionActionSchema = z.object({
+  customer_id: z.string(),
+  status: z.enum(['queued', 'in_progress', 'completed']),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+export type RetentionAction = z.infer<typeof RetentionActionSchema>
+
+// 高風險門檻：流失機率 70% 以上（須與後端 churn_model.py 一致）
+export const HIGH_RISK_THRESHOLD = 0.7
+
+export const ChurnModelCardSchema = z.object({
+  algorithm: z.string(),
+  features: z.array(z.string()),
+  train_rows: z.number().int().nonnegative(),
+  test_rows: z.number().int().nonnegative(),
+  base_churn_rate: z.number(),
+  test_roc_auc: z.number(),
+  test_accuracy: z.number(),
+  test_brier_score: z.number(),
+  high_risk_threshold: z.number(),
+  test_flagged_high_risk: z.number().int().nonnegative(),
+  test_high_risk_precision: z.number().nullable(),
+  calibration: z.array(
+    z.object({
+      range: z.string(),
+      count: z.number().int().nonnegative(),
+      predicted: z.number(),
+      actual: z.number(),
+    })
+  ),
+})
+
+export type ChurnModelCard = z.infer<typeof ChurnModelCardSchema>
+
 export interface ModelMetrics {
   accuracy: number
   roc_auc: number
   precision: number
   recall: number
-  latency_ms: number
   confusion_matrix: {
     true_positive: number
     false_positive: number
@@ -199,19 +335,61 @@ export const REAL_KAGGLE_CHURN_DATA: CustomerChurnRecord[] = [
 
 CustomerChurnSchema.array().parse(REAL_KAGGLE_CHURN_DATA)
 
-export const MODEL_METRICS: ModelMetrics = {
-  accuracy: 0.815,
-  roc_auc: 0.86,
-  precision: 0.7,
-  recall: 0.54,
-  latency_ms: 120,
-  confusion_matrix: {
-    true_positive: 14,
-    false_positive: 6,
-    true_negative: 68,
-    false_negative: 12,
-  },
+export const computeModelMetrics = (rows: CustomerChurnRecord[], threshold = HIGH_RISK_THRESHOLD): ModelMetrics => {
+  let true_positive = 0
+  let false_positive = 0
+  let true_negative = 0
+  let false_negative = 0
+
+  for (const row of rows) {
+    const predictedPositive = row.churn_probability >= threshold
+    const actualPositive = row.actual_churn
+
+    if (predictedPositive && actualPositive) true_positive += 1
+    else if (predictedPositive && !actualPositive) false_positive += 1
+    else if (!predictedPositive && actualPositive) false_negative += 1
+    else true_negative += 1
+  }
+
+  const total = rows.length || 1
+  const accuracy = (true_positive + true_negative) / total
+  const precision = true_positive + false_positive ? true_positive / (true_positive + false_positive) : 0
+  const recall = true_positive + false_negative ? true_positive / (true_positive + false_negative) : 0
+  const positiveCount = rows.filter((row) => row.actual_churn).length
+  const negativeCount = rows.length - positiveCount
+  let positiveRankSum = 0
+  const sortedRows = [...rows].sort((left, right) => left.churn_probability - right.churn_probability)
+
+  for (let start = 0; start < sortedRows.length;) {
+    let end = start + 1
+    while (end < sortedRows.length && sortedRows[end].churn_probability === sortedRows[start].churn_probability) {
+      end += 1
+    }
+
+    const averageRank = ((start + 1) + end) / 2
+    positiveRankSum += sortedRows.slice(start, end).filter((row) => row.actual_churn).length * averageRank
+    start = end
+  }
+
+  const roc_auc = positiveCount && negativeCount
+    ? (positiveRankSum - (positiveCount * (positiveCount + 1)) / 2) / (positiveCount * negativeCount)
+    : 0
+
+  return {
+    accuracy,
+    roc_auc,
+    precision,
+    recall,
+    confusion_matrix: {
+      true_positive,
+      false_positive,
+      true_negative,
+      false_negative,
+    },
+  }
 }
+
+export const MODEL_METRICS: ModelMetrics = computeModelMetrics(REAL_KAGGLE_CHURN_DATA)
 
 export type Filters = {
   search: string
@@ -228,8 +406,8 @@ export const FiltersSchema = z.object({
 export const riskTone = (risk: CustomerChurnRecord['risk_level']) =>
   risk === 'High' ? 'high' : risk === 'Medium' ? 'medium' : 'low'
 
-export const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
+export const formatCurrency = (value: number, locale: 'en-US' | 'zh-TW' = 'en-US') =>
+  new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'USD',
   }).format(value)
